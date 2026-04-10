@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="zoraxy.csrf.Token" content="{{.csrfToken}}">
+    <link rel="stylesheet" href="/script/semantic/semantic.min.css">
+    <script src="/script/jquery-3.6.0.min.js"></script>
+    <script src="/script/semantic/semantic.min.js"></script>
+    <script src="/script/utils.js"></script>
+    <!-- Ace Editor CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebDAV File Manager</title>
+    <style>
+        body {
+            background-color: var(--theme_bg_primary);
+        }
+        .file-manager-container {
+            max-width: 900px;
+        }
+        .breadcrumb-bar {
+            background: var(--theme_bg_active, #f9f9f9);
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .breadcrumb-bar a {
+            cursor: pointer;
+            color: var(--theme_text, #4183c4);
+        }
+        .breadcrumb-bar a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-separator {
+            margin: 0 2px;
+            color: #999;
+        }
+        .file-table {
+            width: 100%;
+        }
+        .file-table tbody tr {
+            cursor: pointer;
+        }
+        .file-table tbody tr:hover {
+            background: var(--theme_bg_active, rgba(0,0,0,0.03));
+        }
+        body.darkTheme .file-table tbody tr:hover {
+            background: rgba(128, 155, 204, 0.3);
+        }
+        body.darkTheme .file-name-cell a {
+            color: #8dadf8;
+            text-decoration: underline;
+        }
+        .file-icon {
+            width: 20px;
+            text-align: center;
+            color: #666;
+        }
+        .file-name-cell {
+            word-break: break-all;
+        }
+        .file-size-cell, .file-modified-cell {
+            white-space: nowrap;
+            color: #888;
+        }
+        .file-actions-cell {
+            white-space: nowrap;
+            text-align: right;
+        }
+        .file-actions-cell .ui.button {
+            padding: 6px 10px;
+            margin: 0 2px;
+        }
+        .wtoolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            background-color: transparent !important;
+        }
+        .wtoolbar .spacer {
+            flex: 1;
+        }
+        .empty-dir-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        .preview-content {
+            max-height: 500px;
+            overflow: auto;
+            background: var(--theme_bg_secondary, #f5f5f5);
+            padding: 12px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .drop-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(33, 133, 208, 0.15);
+            border: 3px dashed #2185d0;
+            z-index: 9999;
+            pointer-events: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .drop-overlay.active {
+            display: flex;
+        }
+        .drop-overlay span {
+            font-size: 1.4em;
+            color: #2185d0;
+            font-weight: bold;
+            background: white;
+            padding: 16px 32px;
+            border-radius: 8px;
+        }
+        .config-field {
+            margin-bottom: 10px;
+        }
+        #uploadProgress {
+            display: none;
+            margin-top: 8px;
+        }
+        #aceEditorContainer {
+            width: 100%;
+            height: 420px;
+            border: 1px solid #555;
+            border-radius: 4px;
+        }
+        .media-preview {
+            text-align: center;
+            padding: 10px 0;
+        }
+        .media-preview img {
+            max-width: 100%;
+            max-height: 450px;
+            border-radius: 4px;
+        }
+        .media-preview audio {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .media-preview video {
+            max-width: 100%;
+            max-height: 450px;
+            border-radius: 4px;
+        }
+        /* Unconfigured overlay */
+        .unconfigured-overlay {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .unconfigured-overlay i.icon {
+            font-size: 4em;
+            color: #ccc;
+            margin-bottom: 16px;
+        }
+        .unconfigured-overlay h3 {
+            color: #888;
+        }
+        .unconfigured-overlay p {
+            color: #aaa;
+        }
+        /* Dark theme for modals */
+        body.darkTheme .ui.modal {
+            background: #2b2b2b;
+            color: #e0e0e0;
+        }
+        body.darkTheme .ui.modal > .header {
+            background: #333;
+            color: #e0e0e0;
+            border-bottom: 1px solid #444;
+        }
+        body.darkTheme .ui.modal > .content {
+            background: #2b2b2b;
+            color: #e0e0e0;
+        }
+        body.darkTheme .ui.modal > .actions {
+            background: #333;
+            border-top: 1px solid #444;
+        }
+        body.darkTheme .ui.modal .ui.form .field > label {
+            color: #ccc;
+        }
+        body.darkTheme .ui.modal .ui.form input[type="text"],
+        body.darkTheme .ui.modal .ui.form input[type="number"],
+        body.darkTheme .ui.modal .ui.form input[type="password"] {
+            background: #3a3a3a;
+            color: #e0e0e0;
+            border-color: #555;
+        }
+        body.darkTheme .ui.modal .ui.button,
+        body.darkTheme .ui.modal .ui.cancel.button {
+            color: #e0e0e0;
+            background: #444;
+        }
+        body.darkTheme .ui.modal .ui.cancel.button:hover {
+            background: #555;
+        }
+        body.darkTheme .ui.modal .ui.primary.button {
+            background: #2185d0;
+            color: #fff;
+        }
+        body.darkTheme .ui.modal .ui.negative.button {
+            background: #db2828;
+            color: #fff;
+        }
+        body.darkTheme .ui.modal .ui.green.button {
+            background: #21ba45;
+            color: #fff;
+        }
+        body.darkTheme .ui.modal .preview-content {
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        body.darkTheme .ui.dimmer {
+            background: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <link rel="stylesheet" href="/darktheme.css">
+    <script src="/script/darktheme.js"></script>
+    <div class="standardContainer">
+        <br><br>
+        <div class="ui container">
+            <h1>WebDAV File Manager</h1>
+            <p>Manage your Zoraxy static web server content through this web file manager</p>
+            <br>
+        </div>
+        <div class="ui container file-manager-container">
+            <div class="ui top attached tabular menu">
+                <a class="item active" data-tab="files"><i class="yellow folder icon"></i> File Manager</a>
+                <a class="item" data-tab="settings"><i class="teal cog icon"></i> Settings</a>
+            </div>
+
+            <!-- File Manager Tab -->
+            <div class="ui bottom attached tab segment active" data-tab="files">
+                <!-- Unconfigured state -->
+                <div class="unconfigured-overlay" id="unconfiguredMsg" style="display:none;">
+                    <i class="code icon"></i>
+                    <h3>WebDAV Connection Not Configured</h3>
+                    <p>Please go to the <b>Settings</b> tab and configure your WebDAV username and password to start using the file manager.</p>
+                    <button class="ui basic button" onclick="$('.menu .item[data-tab=settings]').click();">
+                        Go to Settings
+                    </button>
+                </div>
+
+                <!-- Normal file manager UI (hidden when unconfigured) -->
+                <div id="fileManagerUI">
+                    <div class="breadcrumb-bar" id="breadcrumb"></div>
+                    <div class="wtoolbar">
+                        <button class="ui basic icon button" onclick="navigateUp()" title="Go up">
+                            <i class="arrow up icon"></i>
+                        </button>
+                        <button class="ui basic icon button" onclick="refreshList()" title="Refresh">
+                            <i class="green sync icon"></i>
+                        </button>
+                        <button class="ui basic primary button" onclick="showNewFolderModal()">
+                            <i class="folder plus icon"></i> New Folder
+                        </button>
+                        <div class="spacer"></div>
+                        <button class="ui basic green button" onclick="$('#uploadFileInput').click()">
+                            <i class="upload icon"></i> Upload
+                        </button>
+                        <input type="file" id="uploadFileInput" multiple style="display:none" onchange="uploadFiles(this.files)">
+                    </div>
+
+                    <div id="uploadProgress">
+                        <div class="ui indicating progress" id="uploadProgressBar">
+                            <div class="bar"><div class="progress"></div></div>
+                            <div class="label">Uploading...</div>
+                        </div>
+                    </div>
+
+                    <table class="ui celled table file-table" id="fileTable">
+                        <thead>
+                            <tr>
+                                <th style="width:30px"></th>
+                                <th>Name</th>
+                                <th style="width:100px">Size</th>
+                                <th style="width:180px">Modified</th>
+                                <th style="width:120px">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileListBody">
+                        </tbody>
+                    </table>
+                    <div class="empty-dir-message" id="emptyMessage" style="display:none;">
+                        <i class="folder open outline icon" style="font-size:3em;opacity:0.3;"></i>
+                        <p>This folder is empty</p>
+                        <p style="font-size:0.9em;">Drag & drop files here or click Upload</p>
+                    </div>
+                    <div class="ui active centered inline loader" id="loadingIndicator" style="display:none;margin:30px auto;"></div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="ui bottom attached tab segment" data-tab="settings">
+                <h3>WebDAV Connection Settings</h3>
+                <p>Configure the WebDAV server connection for the static web server. <br>This will connects to 127.0.0.1:5488 by default.</p>
+                <div class="ui divider"></div>
+                <div class="ui form" id="settingsForm">
+                    <div class="config-field">
+                        <div class="field">
+                            <label>Username</label>
+                            <input type="text" id="cfgUsername" placeholder="admin">
+                        </div>
+                    </div>
+                    <div class="config-field">
+                        <div class="field">
+                            <label>Password</label>
+                            <div class="ui action input">
+                                <input type="password" id="cfgPassword" placeholder="password">
+                                <button class="ui icon button" onclick="togglePasswordVisibility()" title="Show/hide password">
+                                    <i class="eye icon" id="pwdToggleIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                     <div class="config-field">
+                        <div class="field">
+                            <label>WebDAV Port</label>
+                            <input type="number" id="cfgPort" placeholder="5488" min="1" max="65535">
+                        </div>
+                    </div>
+                    <div class="config-field">
+                        <div class="field">
+                            <label>Max Upload Size (MB)</label>
+                            <input type="number" id="cfgMaxUpload" placeholder="100" min="1">
+                        </div>
+                    </div>
+                    <button class="ui basic button" onclick="saveSettings()">
+                        <i class="green save icon"></i> Save Settings
+                    </button>
+                    <div class="ui message" id="settingsMessage" style="display:none;"></div>
+                </div>
+                <div class="ui divider"></div>
+                <p>Tips: You can find the static web server WebDAV port number in the "Static Web Server" tab section "WebDAV Server".<br>
+                The username and password are the same as the ones used for logging into the Zoraxy webmin panel.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drag & Drop Overlay -->
+    <div class="drop-overlay" id="dropOverlay">
+        <span><i class="upload icon"></i> Drop files to upload</span>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="ui mini modal" id="renameModal">
+        <div class="header">Rename</div>
+        <div class="content">
+            <div class="ui form">
+                <div class="field">
+                    <label>New Name</label>
+                    <input type="text" id="renameInput" placeholder="Enter new name">
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <div class="ui cancel button">Cancel</div>
+            <div class="ui primary approve button" onclick="doRename()">Rename</div>
+        </div>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div class="ui mini modal" id="newFolderModal">
+        <div class="header">New Folder</div>
+        <div class="content">
+            <div class="ui form">
+                <div class="field">
+                    <label>Folder Name</label>
+                    <input type="text" id="newFolderInput" placeholder="Enter folder name">
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <div class="ui cancel button">Cancel</div>
+            <div class="ui primary approve button" onclick="doNewFolder()">Create</div>
+        </div>
+    </div>
+
+    <!-- File Preview/Edit Modal -->
+    <div class="ui large modal" id="previewModal">
+        <div class="header" id="previewTitle">File Preview</div>
+        <div class="content">
+            <!-- Text editor (Ace) -->
+            <div id="editorWrapper" style="display:none;">
+                <div id="aceEditorContainer"></div>
+            </div>
+            <!-- Media preview (images/audio/video) -->
+            <div id="mediaWrapper" style="display:none;">
+                <div class="media-preview" id="mediaContent"></div>
+            </div>
+            <!-- Fallback text preview for non-editable text -->
+            <div id="textPreviewWrapper" style="display:none;">
+                <div class="preview-content" id="previewContent"></div>
+            </div>
+            <!-- Binary fallback -->
+            <div id="binaryWrapper" style="display:none;">
+                <div class="preview-content" id="binaryContent"></div>
+            </div>
+        </div>
+        <div class="actions">
+            <div class="ui basic button" id="saveFileBtn" style="display:none;">
+                <i class="green save icon"></i> Save
+            </div>
+            <div class="ui basic button" id="previewDownloadBtn">
+                <i class="blue download icon"></i> Download
+            </div>
+            <div class="ui basic cancel button">Close</div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="ui mini modal" id="deleteModal">
+        <div class="header"><i class="trash icon"></i> Confirm Delete</div>
+        <div class="content">
+            <p>Are you sure you want to delete <b id="deleteFileName"></b>?</p>
+            <p style="color:#db2828;font-size:0.9em;">This action cannot be undone.</p>
+        </div>
+        <div class="actions">
+            <div class="ui cancel button">Cancel</div>
+            <div class="ui negative approve button" onclick="doDelete()">Delete</div>
+        </div>
+    </div>
+
+    <!-- Move Modal -->
+    <div class="ui mini modal" id="moveModal">
+        <div class="header">Move File</div>
+        <div class="content">
+            <div class="ui form">
+                <div class="field">
+                    <label>Destination Directory</label>
+                    <input type="text" id="moveDestInput" placeholder="/path/to/destination">
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <div class="ui cancel button">Cancel</div>
+            <div class="ui primary approve button" onclick="doMove()">Move</div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentPath = "/";
+        let pendingRenamePath = "";
+        let pendingDeletePath = "";
+        let pendingMovePath = "";
+        let aceEditor = null;
+        let currentEditPath = "";
+        let isConfigured = false;
+
+        // Initialize tabs
+        $('.menu .item').tab();
+
+        // Load on start
+        $(document).ready(function() {
+            loadSettings();
+        });
+
+        // --- Configuration check ---
+        function checkConfigured(cfg) {
+            if (!cfg.username || !cfg.password) {
+                isConfigured = false;
+                $('#fileManagerUI').hide();
+                $('#unconfiguredMsg').show();
+            } else {
+                isConfigured = true;
+                $('#unconfiguredMsg').hide();
+                $('#fileManagerUI').show();
+                navigateTo("/");
+            }
+        }
+
+        // --- Navigation ---
+        function navigateTo(dirPath) {
+            if (!isConfigured) return;
+            currentPath = dirPath || "/";
+            updateBreadcrumb();
+            loadFileList();
+        }
+
+        function navigateUp() {
+            if (currentPath === "/") return;
+            let parts = currentPath.replace(/\/$/, "").split("/");
+            parts.pop();
+            let parent = parts.join("/") || "/";
+            navigateTo(parent);
+        }
+
+        function refreshList() {
+            loadFileList();
+        }
+
+        function updateBreadcrumb() {
+            let bc = $('#breadcrumb');
+            bc.empty();
+            bc.append('<a onclick="navigateTo(\'/\')"><i class="home icon"></i> Root</a>');
+
+            if (currentPath !== "/") {
+                let parts = currentPath.replace(/^\//, "").replace(/\/$/, "").split("/");
+                let accumulated = "";
+                for (let i = 0; i < parts.length; i++) {
+                    accumulated += "/" + parts[i];
+                    let p = accumulated;
+                    bc.append('<span class="breadcrumb-separator">/</span>');
+                    if (i === parts.length - 1) {
+                        bc.append('<b>' + escapeHtml(decodeURIComponent(parts[i])) + '</b>');
+                    } else {
+                        bc.append('<a onclick="navigateTo(\'' + escapeAttr(p) + '\')">' + escapeHtml(decodeURIComponent(parts[i])) + '</a>');
+                    }
+                }
+            }
+        }
+
+        // --- File List ---
+        function loadFileList() {
+            if (!isConfigured) return;
+            $('#loadingIndicator').show();
+            $('#fileTable').hide();
+            $('#emptyMessage').hide();
+
+            $.ajax({
+                url: './api/file/list',
+                type: 'GET',
+                data: { path: currentPath },
+                dataType: 'json',
+                success: function(data) {
+                    $('#loadingIndicator').hide();
+                    renderFileList(data.files || []);
+                },
+                error: function(xhr) {
+                    $('#loadingIndicator').hide();
+                    $('#fileTable').show();
+                    let msg = "Failed to load files";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        function renderFileList(files) {
+            let tbody = $('#fileListBody');
+            tbody.empty();
+
+            if (!files || files.length === 0) {
+                $('#fileTable').hide();
+                $('#emptyMessage').show();
+                return;
+            }
+
+            $('#fileTable').show();
+            $('#emptyMessage').hide();
+
+            // Sort: directories first, then by name
+            files.sort(function(a, b) {
+                if (a.is_dir && !b.is_dir) return -1;
+                if (!a.is_dir && b.is_dir) return 1;
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+            });
+
+            for (let f of files) {
+                let icon = f.is_dir ? 'folder icon' : getFileIcon(f.name);
+                let iconColor = f.is_dir ? 'color:#f0c230;' : '';
+                let sizeStr = f.is_dir ? '-' : formatSize(f.size);
+                let modStr = f.modified ? formatDate(f.modified) : '-';
+                let fpath = escapeAttr(f.path);
+
+                let row = '<tr>';
+                row += '<td class="file-icon" style="' + iconColor + '"><i class="' + icon + '"></i></td>';
+
+                if (f.is_dir) {
+                    row += '<td class="file-name-cell"><a onclick="navigateTo(\'' + fpath + '\')" style="cursor:pointer;">' + escapeHtml(f.name) + '</a></td>';
+                } else {
+                    row += '<td class="file-name-cell"><a onclick="previewFile(\'' + fpath + '\')" style="cursor:pointer;">' + escapeHtml(f.name) + '</a></td>';
+                }
+
+                row += '<td class="file-size-cell">' + sizeStr + '</td>';
+                row += '<td class="file-modified-cell">' + modStr + '</td>';
+                row += '<td class="file-actions-cell">';
+                if (!f.is_dir) {
+                    row += '<button class="ui mini basic icon button" onclick="event.stopPropagation();downloadFile(\'' + fpath + '\')" title="Download"><i class="download icon"></i></button>';
+                }
+                row += '<button class="ui mini basic icon button" onclick="event.stopPropagation();showRenameModal(\'' + fpath + '\', \'' + escapeAttr(f.name) + '\')" title="Rename"><i class="pencil icon"></i></button>';
+                row += '<button class="ui mini basic icon button" onclick="event.stopPropagation();showMoveModal(\'' + fpath + '\')" title="Move"><i class="arrow right icon"></i></button>';
+                row += '<button class="ui mini basic red icon button" onclick="event.stopPropagation();showDeleteModal(\'' + fpath + '\', \'' + escapeAttr(f.name) + '\')" title="Delete"><i class="trash icon"></i></button>';
+                row += '</td>';
+                row += '</tr>';
+                tbody.append(row);
+            }
+        }
+
+        // --- Ace Editor mode mapping ---
+        function getAceMode(fileName) {
+            let ext = fileName.split('.').pop().toLowerCase();
+            const modeMap = {
+                'html': 'html', 'htm': 'html',
+                'css': 'css', 'js': 'javascript',
+                'json': 'json', 'xml': 'xml',
+                'md': 'markdown', 'txt': 'text',
+                'py': 'python', 'go': 'golang',
+                'java': 'java', 'c': 'c_cpp', 'cpp': 'c_cpp',
+                'h': 'c_cpp', 'hpp': 'c_cpp',
+                'rs': 'rust', 'ts': 'typescript',
+                'tsx': 'tsx', 'jsx': 'jsx',
+                'sh': 'sh', 'bash': 'sh',
+                'yaml': 'yaml', 'yml': 'yaml',
+                'toml': 'toml', 'ini': 'ini',
+                'sql': 'sql', 'php': 'php',
+                'rb': 'ruby', 'pl': 'perl',
+                'svg': 'svg', 'csv': 'text',
+                'log': 'text', 'env': 'text',
+                'vue': 'html', 'conf': 'text', 'cfg': 'text'
+            };
+            return modeMap[ext] || 'text';
+        }
+
+        // --- Is browser-previewable media ---
+        function isImageFile(name) {
+            let ext = name.split('.').pop().toLowerCase();
+            return ['jpg','jpeg','png','gif','svg','webp','bmp','ico'].includes(ext);
+        }
+        function isAudioFile(name) {
+            let ext = name.split('.').pop().toLowerCase();
+            return ['mp3','wav','ogg','flac','aac','m4a'].includes(ext);
+        }
+        function isVideoFile(name) {
+            let ext = name.split('.').pop().toLowerCase();
+            return ['mp4','webm','ogg','mov'].includes(ext);
+        }
+        function isEditableTextFile(name) {
+            let ext = name.split('.').pop().toLowerCase();
+            const editable = [
+                'html','htm','css','js','json','xml','md','txt',
+                'py','go','java','c','cpp','h','hpp','rs','ts','tsx','jsx',
+                'sh','bash','yaml','yml','toml','ini','sql','php','rb','pl',
+                'svg','csv','log','env','vue','conf','cfg'
+            ];
+            return editable.includes(ext);
+        }
+
+        // --- File Operations ---
+        function previewFile(filePath) {
+            let name = filePath.split('/').pop();
+
+            // Reset modal state
+            $('#editorWrapper').hide();
+            $('#mediaWrapper').hide();
+            $('#textPreviewWrapper').hide();
+            $('#binaryWrapper').hide();
+            $('#saveFileBtn').hide();
+            currentEditPath = "";
+
+            // Check if it's a browser-previewable media file
+            if (isImageFile(name) || isAudioFile(name) || isVideoFile(name)) {
+                showMediaPreview(filePath, name);
+                return;
+            }
+
+            // Otherwise, fetch content via API
+            $.ajax({
+                url: './api/file/open',
+                type: 'GET',
+                data: { path: filePath },
+                dataType: 'json',
+                success: function(data) {
+                    $('#previewTitle').text(decodeURIComponent(name));
+
+                    if (data.binary) {
+                        // Binary non-media file
+                        $('#binaryContent').text('Binary file (' + data.content_type + ', ' + formatSize(data.size) + ')\nUse Download to retrieve this file.');
+                        $('#binaryWrapper').show();
+                    } else if (isEditableTextFile(name)) {
+                        // Show Ace editor
+                        showAceEditor(filePath, name, data.content || '');
+                    } else {
+                        // Non-editable text - plain preview
+                        $('#previewContent').text(data.content || '(empty file)');
+                        $('#textPreviewWrapper').show();
+                    }
+
+                    $('#previewDownloadBtn').off('click').on('click', function() {
+                        downloadFile(filePath);
+                    });
+                    $('#previewModal').modal({
+                        onHidden: function() {
+                            destroyAceEditor();
+                        }
+                    }).modal('show');
+                },
+                error: function(xhr) {
+                    let msg = "Failed to open file";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        function showAceEditor(filePath, name, content) {
+            currentEditPath = filePath;
+            $('#editorWrapper').show();
+            $('#saveFileBtn').show();
+
+            // Initialize Ace editor
+            if (!aceEditor) {
+                aceEditor = ace.edit("aceEditorContainer");
+            }
+            aceEditor.setTheme("ace/theme/monokai");
+            aceEditor.session.setMode("ace/mode/" + getAceMode(name));
+            aceEditor.setValue(content, -1);
+            aceEditor.setOptions({
+                fontSize: "13px",
+                showPrintMargin: false,
+                wrap: true
+            });
+            aceEditor.focus();
+
+            // Bind save button
+            $('#saveFileBtn').off('click').on('click', function() {
+                saveCurrentFile();
+            });
+
+            // Ctrl+S / Cmd+S shortcut
+            aceEditor.commands.addCommand({
+                name: 'save',
+                bindKey: { win: 'Ctrl-S', mac: 'Cmd-S' },
+                exec: function() {
+                    saveCurrentFile();
+                }
+            });
+        }
+
+        function destroyAceEditor() {
+            if (aceEditor) {
+                aceEditor.destroy();
+                aceEditor = null;
+                $('#aceEditorContainer').empty();
+            }
+            currentEditPath = "";
+        }
+
+        function saveCurrentFile() {
+            if (!currentEditPath || !aceEditor) return;
+
+            let content = aceEditor.getValue();
+            $.cjax({
+                url: './api/file/save',
+                type: 'POST',
+                data: JSON.stringify({ path: currentEditPath, content: content }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    parent.msgbox(data.message || "File saved", true);
+                },
+                error: function(xhr) {
+                    let msg = "Failed to save file";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        function showMediaPreview(filePath, name) {
+            let downloadUrl = './api/file/download?path=' + encodeURIComponent(filePath);
+            let mc = $('#mediaContent');
+            mc.empty();
+
+            if (isImageFile(name)) {
+                mc.html('<img src="' + downloadUrl + '" alt="' + escapeAttr(name) + '">');
+            } else if (isAudioFile(name)) {
+                mc.html('<p><i class="music icon" style="font-size:3em;color:#888;"></i></p><audio controls preload="metadata"><source src="' + downloadUrl + '">Your browser does not support audio playback.</audio>');
+            } else if (isVideoFile(name)) {
+                mc.html('<video controls preload="metadata"><source src="' + downloadUrl + '">Your browser does not support video playback.</video>');
+            }
+
+            $('#mediaWrapper').show();
+            $('#previewTitle').text(decodeURIComponent(name));
+            $('#previewDownloadBtn').off('click').on('click', function() {
+                downloadFile(filePath);
+            });
+            $('#previewModal').modal({
+                onHidden: function() {
+                    // Stop media playback on close
+                    mc.find('audio, video').each(function() { this.pause(); });
+                    mc.empty();
+                }
+            }).modal('show');
+        }
+
+        function downloadFile(filePath) {
+            parent.window.open('./api/file/download?path=' + encodeURIComponent(filePath), '_blank');
+            return;
+            let a = document.createElement('a');
+            a.href = './api/file/download?path=' + encodeURIComponent(filePath);
+            a.download = filePath.split('/').pop();
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function uploadFiles(fileList) {
+            if (!fileList || fileList.length === 0) return;
+
+            let total = fileList.length;
+            let completed = 0;
+            $('#uploadProgress').show();
+            $('#uploadProgressBar').progress({ percent: 0 });
+
+            for (let i = 0; i < fileList.length; i++) {
+                let formData = new FormData();
+                formData.append('file', fileList[i]);
+                formData.append('path', currentPath);
+
+                $.ajax({
+                    url: './api/file/upload',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    headers: {
+                        'X-CSRF-Token': $('meta[name="zoraxy.csrf.Token"]').attr('content')
+                    },
+                    success: function() {
+                        completed++;
+                        $('#uploadProgressBar').progress({ percent: Math.round(completed / total * 100) });
+                        if (completed >= total) {
+                            setTimeout(function() {
+                                $('#uploadProgress').hide();
+                                refreshList();
+                                parent.msgbox(total + ' file(s) uploaded successfully', true);
+                            }, 500);
+                        }
+                    },
+                    error: function(xhr) {
+                        completed++;
+                        let msg = "Upload failed";
+                        try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                        parent.msgbox(msg, false);
+                        if (completed >= total) {
+                            setTimeout(function() {
+                                $('#uploadProgress').hide();
+                                refreshList();
+                            }, 500);
+                        }
+                    }
+                });
+            }
+
+            // Reset file input
+            $('#uploadFileInput').val('');
+        }
+
+        // --- Rename ---
+        function showRenameModal(filePath, currentName) {
+            pendingRenamePath = filePath;
+            $('#renameInput').val(decodeURIComponent(currentName));
+            $('#renameModal').modal('show');
+            setTimeout(function() { $('#renameInput').focus().select(); }, 200);
+        }
+
+        function doRename() {
+            let newName = $('#renameInput').val().trim();
+            if (!newName) {
+                parent.msgbox("Please enter a name", false);
+                return;
+            }
+
+            $.cjax({
+                url: './api/file/rename',
+                type: 'POST',
+                data: JSON.stringify({ path: pendingRenamePath, new_name: newName }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    parent.msgbox(data.message || "Renamed successfully", true);
+                    refreshList();
+                },
+                error: function(xhr) {
+                    let msg = "Rename failed";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        // --- Delete ---
+        function showDeleteModal(filePath, fileName) {
+            pendingDeletePath = filePath;
+            $('#deleteFileName').text(decodeURIComponent(fileName));
+            $('#deleteModal').modal('show');
+        }
+
+        function doDelete() {
+            $.cjax({
+                url: './api/file/delete',
+                type: 'POST',
+                data: JSON.stringify({ path: pendingDeletePath }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    parent.msgbox(data.message || "Deleted successfully", true);
+                    refreshList();
+                },
+                error: function(xhr) {
+                    let msg = "Delete failed";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        // --- Move ---
+        function showMoveModal(filePath) {
+            pendingMovePath = filePath;
+            $('#moveDestInput').val(currentPath);
+            $('#moveModal').modal('show');
+            setTimeout(function() { $('#moveDestInput').focus(); }, 200);
+        }
+
+        function doMove() {
+            let dest = $('#moveDestInput').val().trim();
+            if (!dest) {
+                parent.msgbox("Please enter a destination", false);
+                return;
+            }
+
+            $.cjax({
+                url: './api/file/move',
+                type: 'POST',
+                data: JSON.stringify({ path: pendingMovePath, dest_dir: dest }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    parent.msgbox(data.message || "Moved successfully", true);
+                    refreshList();
+                },
+                error: function(xhr) {
+                    let msg = "Move failed";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        // --- New Folder ---
+        function showNewFolderModal() {
+            $('#newFolderInput').val('');
+            $('#newFolderModal').modal('show');
+            setTimeout(function() { $('#newFolderInput').focus(); }, 200);
+        }
+
+        function doNewFolder() {
+            let name = $('#newFolderInput').val().trim();
+            if (!name) {
+                parent.msgbox("Please enter a folder name", false);
+                return;
+            }
+
+            $.cjax({
+                url: './api/file/newFolder',
+                type: 'POST',
+                data: JSON.stringify({ path: currentPath, name: name }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    parent.msgbox(data.message || "Folder created", true);
+                    refreshList();
+                },
+                error: function(xhr) {
+                    let msg = "Failed to create folder";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        // --- Settings ---
+        function loadSettings() {
+            $.ajax({
+                url: './api/getConfigs',
+                type: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    $('#cfgPort').val(data.port || 5488);
+                    $('#cfgUsername').val(data.username || '');
+                    $('#cfgPassword').val(data.password || '');
+                    $('#cfgMaxUpload').val(Math.round((data.max_upload_size || 26214400) / 1024 / 1024));
+                    checkConfigured(data);
+                },
+                error: function() {
+                    // Use defaults
+                    $('#cfgPort').val(5488);
+                    $('#cfgUsername').val('');
+                    $('#cfgMaxUpload').val(25);
+                    checkConfigured({ username: '', password: '' });
+                }
+            });
+        }
+
+        function saveSettings() {
+            let port = parseInt($('#cfgPort').val());
+            let username = $('#cfgUsername').val().trim();
+            let password = $('#cfgPassword').val();
+            let maxUploadMB = parseInt($('#cfgMaxUpload').val());
+
+            if (!port || port < 1 || port > 65535) {
+                showSettingsMsg("Port must be between 1 and 65535", true);
+                return;
+            }
+            if (!username) {
+                showSettingsMsg("Username is required", true);
+                return;
+            }
+            if (!maxUploadMB || maxUploadMB < 1) {
+                maxUploadMB = 25;
+            }
+
+            $.cjax({
+                url: './api/setConfigs',
+                type: 'POST',
+                data: JSON.stringify({
+                    enabled: true,
+                    port: port,
+                    username: username,
+                    password: password,
+                    max_upload_size: maxUploadMB * 1024 * 1024
+                }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    showSettingsMsg(data.message || "Settings saved", false);
+                    // Re-check configured state and refresh
+                    checkConfigured({ username: username, password: password });
+                },
+                error: function(xhr) {
+                    let msg = "Failed to save settings";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    showSettingsMsg(msg, true);
+                }
+            });
+        }
+
+        function showSettingsMsg(msg, isError) {
+            let el = $('#settingsMessage');
+            el.removeClass('positive negative').addClass(isError ? 'negative' : 'positive');
+            el.text(msg).show();
+            setTimeout(function() { el.fadeOut(); }, 4000);
+        }
+
+        function togglePasswordVisibility() {
+            let input = $('#cfgPassword');
+            let icon = $('#pwdToggleIcon');
+            if (input.attr('type') === 'password') {
+                input.attr('type', 'text');
+                icon.removeClass('eye').addClass('eye slash');
+            } else {
+                input.attr('type', 'password');
+                icon.removeClass('eye slash').addClass('eye');
+            }
+        }
+
+        // --- Drag & Drop ---
+        let dragCounter = 0;
+
+        document.addEventListener('dragenter', function(e) {
+            e.preventDefault();
+            if (!isConfigured) return;
+            dragCounter++;
+            $('#dropOverlay').addClass('active');
+        });
+
+        document.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter <= 0) {
+                dragCounter = 0;
+                $('#dropOverlay').removeClass('active');
+            }
+        });
+
+        document.addEventListener('dragover', function(e) {
+            e.preventDefault();
+        });
+
+        document.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dragCounter = 0;
+            $('#dropOverlay').removeClass('active');
+            if (!isConfigured) return;
+            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                uploadFiles(e.dataTransfer.files);
+            }
+        });
+
+        // --- Utilities ---
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const k = 1024;
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + units[i];
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                let d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            } catch(e) {
+                return dateStr;
+            }
+        }
+
+        function getFileIcon(name) {
+            let ext = name.split('.').pop().toLowerCase();
+            const iconMap = {
+                'jpg': 'file image outline icon', 'jpeg': 'file image outline icon',
+                'png': 'file image outline icon', 'gif': 'file image outline icon',
+                'svg': 'file image outline icon', 'webp': 'file image outline icon',
+                'bmp': 'file image outline icon', 'ico': 'file image outline icon',
+                'pdf': 'file pdf outline icon',
+                'doc': 'file word outline icon', 'docx': 'file word outline icon',
+                'xls': 'file excel outline icon', 'xlsx': 'file excel outline icon',
+                'ppt': 'file powerpoint outline icon', 'pptx': 'file powerpoint outline icon',
+                'zip': 'file archive outline icon', 'rar': 'file archive outline icon',
+                'gz': 'file archive outline icon', 'tar': 'file archive outline icon',
+                '7z': 'file archive outline icon',
+                'mp3': 'file audio outline icon', 'wav': 'file audio outline icon',
+                'flac': 'file audio outline icon', 'ogg': 'file audio outline icon',
+                'mp4': 'file video outline icon', 'avi': 'file video outline icon',
+                'mkv': 'file video outline icon', 'mov': 'file video outline icon',
+                'webm': 'file video outline icon',
+                'html': 'file code outline icon', 'htm': 'file code outline icon',
+                'css': 'file code outline icon', 'js': 'file code outline icon',
+                'json': 'file code outline icon', 'xml': 'file code outline icon',
+                'py': 'file code outline icon', 'go': 'file code outline icon',
+                'java': 'file code outline icon', 'c': 'file code outline icon',
+                'cpp': 'file code outline icon', 'rs': 'file code outline icon',
+                'ts': 'file code outline icon', 'sh': 'file code outline icon',
+                'txt': 'file text outline icon', 'md': 'file text outline icon',
+                'log': 'file text outline icon', 'csv': 'file text outline icon',
+                'yaml': 'file text outline icon', 'yml': 'file text outline icon',
+                'toml': 'file text outline icon', 'ini': 'file text outline icon',
+                'conf': 'file text outline icon', 'cfg': 'file text outline icon'
+            };
+            return iconMap[ext] || 'file outline icon';
+        }
+
+        function escapeHtml(str) {
+            let div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        function escapeAttr(str) {
+            return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        // Enter key support for modals
+        $('#renameInput').on('keypress', function(e) {
+            if (e.which === 13) { doRename(); $('#renameModal').modal('hide'); }
+        });
+        $('#newFolderInput').on('keypress', function(e) {
+            if (e.which === 13) { doNewFolder(); $('#newFolderModal').modal('hide'); }
+        });
+        $('#moveDestInput').on('keypress', function(e) {
+            if (e.which === 13) { doMove(); $('#moveModal').modal('hide'); }
+        });
+    </script>
+</body>
+</html>
