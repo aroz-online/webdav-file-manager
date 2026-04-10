@@ -14,6 +14,16 @@ A Zoraxy plugin that provides a web-based file manager for accessing the Zoraxy 
 - **Settings Panel** – Configure WebDAV connection (port, username, password, max upload size)
 - **Dark Theme** – Follows Zoraxy's dark theme when enabled
 
+## Screenshots
+
+![image-20260410225654392](img/README/image-20260410225654392.png)
+
+![image-20260410225707379](img/README/image-20260410225707379.png)
+
+![image-20260410225716183](img/README/image-20260410225716183.png)
+
+
+
 ## Configuration
 
 On first launch the plugin creates a `config.json` with default values:
