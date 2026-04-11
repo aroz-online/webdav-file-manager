@@ -1,4 +1,7 @@
-.PHONY: all
+.PHONY: all build
+
+build:
+	go build
 
 all: linux_386 linux_amd64 linux_arm linux_arm64 linux_mipsle linux_riscv64 windows_amd64.exe
 

@@ -48,8 +48,36 @@
         .file-table tbody tr:hover {
             background: var(--theme_bg_active, rgba(0,0,0,0.03));
         }
+        .file-table tbody tr.selected-row {
+            background: rgba(33, 133, 208, 0.12) !important;
+        }
         body.darkTheme .file-table tbody tr:hover {
             background: rgba(128, 155, 204, 0.3);
+        }
+        body.darkTheme .file-table tbody tr.selected-row {
+            background: rgba(33, 133, 208, 0.3) !important;
+        }
+
+        .clipboard-info {
+            font-size: 0.85em;
+            color: #888;
+            margin-left: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            border: 1px solid #cccccc;
+            border-radius: 1em;
+            padding: 0.4em;
+            padding-left: 1em;
+            padding-right: 1em;
+        }
+        
+        .clipboard-info .cancel-clip {
+            cursor: pointer;
+            opacity: 0.6;
+        }
+        .clipboard-info .cancel-clip:hover {
+            opacity: 1;
         }
         body.darkTheme .file-name-cell a {
             color: #8dadf8;
@@ -269,6 +297,16 @@
                         <button class="ui basic primary button" onclick="showNewFolderModal()">
                             <i class="folder plus icon"></i> New Folder
                         </button>
+                        <button class="ui basic icon button disabled" id="cutBtn" onclick="doCut()" title="Cut selected file">
+                            <i class="cut icon"></i>
+                        </button>
+                        <button class="ui basic icon button disabled" id="copyBtn" onclick="doCopy()" title="Copy selected file">
+                            <i class="copy icon"></i>
+                        </button>
+                        <button class="ui basic icon button disabled" id="pasteBtn" onclick="doPaste()" title="Paste into current directory">
+                            <i class="paste icon"></i>
+                        </button>
+                        <span class="clipboard-info" id="clipboardInfo" style="display:none;"></span>
                         <div class="spacer"></div>
                         <button class="ui basic green button" onclick="$('#uploadFileInput').click()">
                             <i class="upload icon"></i> Upload
@@ -463,6 +501,12 @@
         let currentEditPath = "";
         let isConfigured = false;
 
+        // Clipboard state for cut/copy/paste
+        let selectedFilePath = "";   // currently highlighted row's file path
+        let selectedFileName = "";   // currently highlighted row's file name
+        let clipboardPath = "";      // path saved after cut/copy
+        let clipboardMode = "";      // "cut" or "copy"
+
         // Initialize tabs
         $('.menu .item').tab();
 
@@ -489,8 +533,12 @@
         function navigateTo(dirPath) {
             if (!isConfigured) return;
             currentPath = dirPath || "/";
+            // Clear row selection on navigation, but keep clipboard
+            selectedFilePath = "";
+            selectedFileName = "";
             updateBreadcrumb();
             loadFileList();
+            updateClipboardButtons();
         }
 
         function navigateUp() {
@@ -579,7 +627,7 @@
                 let modStr = f.modified ? formatDate(f.modified) : '-';
                 let fpath = escapeAttr(f.path);
 
-                let row = '<tr>';
+                let row = '<tr onclick="selectRow(this, \'' + fpath + '\', \'' + escapeAttr(f.name) + '\')" ondblclick="openFile(\'' + fpath + '\', ' + f.is_dir + ')">';
                 row += '<td class="file-icon" style="' + iconColor + '"><i class="' + icon + '"></i></td>';
 
                 if (f.is_dir) {
@@ -595,7 +643,6 @@
                     row += '<button class="ui mini basic icon button" onclick="event.stopPropagation();downloadFile(\'' + fpath + '\')" title="Download"><i class="download icon"></i></button>';
                 }
                 row += '<button class="ui mini basic icon button" onclick="event.stopPropagation();showRenameModal(\'' + fpath + '\', \'' + escapeAttr(f.name) + '\')" title="Rename"><i class="pencil icon"></i></button>';
-                row += '<button class="ui mini basic icon button" onclick="event.stopPropagation();showMoveModal(\'' + fpath + '\')" title="Move"><i class="arrow right icon"></i></button>';
                 row += '<button class="ui mini basic red icon button" onclick="event.stopPropagation();showDeleteModal(\'' + fpath + '\', \'' + escapeAttr(f.name) + '\')" title="Delete"><i class="trash icon"></i></button>';
                 row += '</td>';
                 row += '</tr>';
@@ -922,7 +969,133 @@
             });
         }
 
-        // --- Move ---
+        // --- Selection & Clipboard ---
+        function selectRow(rowEl, filePath, fileName) {
+            // Deselect all rows
+            $('#fileListBody tr').removeClass('selected-row');
+
+            // If clicking the already selected row, deselect
+            if (selectedFilePath === filePath) {
+                selectedFilePath = "";
+                selectedFileName = "";
+                updateClipboardButtons();
+                return;
+            }
+
+            // Select this row
+            $(rowEl).addClass('selected-row');
+            selectedFilePath = filePath;
+            selectedFileName = fileName;
+            updateClipboardButtons();
+        }
+
+        function updateClipboardButtons() {
+            // Cut/Copy: enabled when a file is selected
+            if (selectedFilePath) {
+                $('#cutBtn').removeClass('disabled');
+                $('#copyBtn').removeClass('disabled');
+            } else {
+                $('#cutBtn').addClass('disabled');
+                $('#copyBtn').addClass('disabled');
+            }
+
+            // Paste: enabled when clipboard has content
+            if (clipboardPath) {
+                $('#pasteBtn').removeClass('disabled');
+            } else {
+                $('#pasteBtn').addClass('disabled');
+            }
+        }
+
+        function openFile(filePath, isDir) {
+            if (isDir) {
+                navigateTo(filePath);
+            } else {
+                previewFile(filePath);
+            }
+        }
+
+        function updateClipboardInfo() {
+            if (clipboardPath) {
+                let name = clipboardPath.split('/').pop();
+                if (name.trim() == ""){
+                    //The path ends with a slash, so it's a directory. Get the name of the directory instead.
+                    let parts = clipboardPath.replace(/\/$/, "").split("/");
+                    name = parts[parts.length - 1] + "/";
+                }
+                let modeLabel = clipboardMode === 'cut' ? 'Cut' : 'Copied';
+                $('#clipboardInfo').html(
+                    modeLabel + ': <b>' + escapeHtml(decodeURIComponent(name)) + '</b> ' +
+                    '<i class="small close icon cancel-clip" onclick="clearClipboard()" title="Cancel"></i>'
+                ).show();
+            } else {
+                $('#clipboardInfo').hide();
+            }
+        }
+
+        function clearClipboard() {
+            clipboardPath = "";
+            clipboardMode = "";
+            updateClipboardButtons();
+            updateClipboardInfo();
+        }
+
+        function doCut() {
+            if (!selectedFilePath) return;
+            clipboardPath = selectedFilePath;
+            clipboardMode = "cut";
+            parent.msgbox("Cut: " + decodeURIComponent(selectedFilePath.split('/').pop()), true);
+            // Deselect after cut
+            selectedFilePath = "";
+            selectedFileName = "";
+            $('#fileListBody tr').removeClass('selected-row');
+            updateClipboardButtons();
+            updateClipboardInfo();
+        }
+
+        function doCopy() {
+            if (!selectedFilePath) return;
+            clipboardPath = selectedFilePath;
+            clipboardMode = "copy";
+            parent.msgbox("Copied: " + decodeURIComponent(selectedFilePath.split('/').pop()), true);
+            // Deselect after copy
+            selectedFilePath = "";
+            selectedFileName = "";
+            $('#fileListBody tr').removeClass('selected-row');
+            updateClipboardButtons();
+            updateClipboardInfo();
+        }
+
+        function doPaste() {
+            if (!clipboardPath) return;
+
+            let apiUrl = clipboardMode === 'cut' ? './api/file/move' : './api/file/copy';
+            let actionLabel = clipboardMode === 'cut' ? 'Moved' : 'Copied';
+            let savedMode = clipboardMode;
+
+            $.cjax({
+                url: apiUrl,
+                type: 'POST',
+                data: JSON.stringify({ path: clipboardPath, dest_dir: currentPath }),
+                contentType: 'application/json',
+                dataType: 'json',
+                success: function(data) {
+                    parent.msgbox(data.message || actionLabel + " successfully", true);
+                    // Clear clipboard after cut (move), keep after copy
+                    if (savedMode === 'cut') {
+                        clearClipboard();
+                    }
+                    refreshList();
+                },
+                error: function(xhr) {
+                    let msg = "Paste failed";
+                    try { msg = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    parent.msgbox(msg, false);
+                }
+            });
+        }
+
+        // --- Move (legacy modal - kept for compatibility) ---
         function showMoveModal(filePath) {
             pendingMovePath = filePath;
             $('#moveDestInput').val(currentPath);

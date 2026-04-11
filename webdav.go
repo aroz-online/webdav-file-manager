@@ -305,6 +305,42 @@ func (w *WebDAVClient) MkDir(dirPath string) error {
 	return nil
 }
 
+// Copy copies a file or directory to a new location on the WebDAV server using COPY
+func (w *WebDAVClient) Copy(srcPath, destDir string) error {
+	fileName := path.Base(srcPath)
+	destPath := path.Join(destDir, fileName)
+	if !strings.HasPrefix(destPath, "/") {
+		destPath = "/" + destPath
+	}
+
+	req, err := w.newRequest("COPY", srcPath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Destination", w.BaseURL+destPath)
+	req.Header.Set("Overwrite", "F")
+
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to copy: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("authentication failed")
+	}
+
+	if resp.StatusCode == http.StatusPreconditionFailed {
+		return fmt.Errorf("destination already exists")
+	}
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to copy: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 // GetFileContent retrieves file content as bytes (for previewing text files, etc.)
 func (w *WebDAVClient) GetFileContent(filePath string) ([]byte, string, error) {
 	body, contentType, _, err := w.Download(filePath)

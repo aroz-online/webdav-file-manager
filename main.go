@@ -72,6 +72,7 @@ func main() {
 	embedWebRouter.HandleFunc("/api/file/rename", handleRenameFile, nil)
 	embedWebRouter.HandleFunc("/api/file/move", handleMoveFile, nil)
 	embedWebRouter.HandleFunc("/api/file/cut", handleCutFile, nil)
+	embedWebRouter.HandleFunc("/api/file/copy", handleCopyFile, nil)
 	embedWebRouter.HandleFunc("/api/file/newFolder", handleNewFolder, nil)
 	embedWebRouter.HandleFunc("/api/file/save", handleSaveFile, nil)
 

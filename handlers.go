@@ -432,6 +432,55 @@ func handleCutFile(w http.ResponseWriter, r *http.Request) {
 	handleMoveFile(w, r)
 }
 
+// handleCopyFile copies a file or directory to a different directory
+func handleCopyFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Path    string `json:"path"`
+		DestDir string `json:"dest_dir"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Path == "" || req.DestDir == "" {
+		jsonError(w, "Both 'path' and 'dest_dir' are required", http.StatusBadRequest)
+		return
+	}
+
+	req.Path = path.Clean(req.Path)
+	if !strings.HasPrefix(req.Path, "/") {
+		req.Path = "/" + req.Path
+	}
+	req.DestDir = path.Clean(req.DestDir)
+	if !strings.HasPrefix(req.DestDir, "/") {
+		req.DestDir = "/" + req.DestDir
+	}
+
+	client := getClient()
+	if client == nil {
+		jsonError(w, "WebDAV client not initialized", http.StatusServiceUnavailable)
+		return
+	}
+
+	if err := client.Copy(req.Path, req.DestDir); err != nil {
+		jsonError(w, "Failed to copy: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	newPath := path.Join(req.DestDir, path.Base(req.Path))
+	jsonResponse(w, map[string]interface{}{
+		"success":  true,
+		"message":  fmt.Sprintf("Copied to: %s", newPath),
+		"new_path": newPath,
+	})
+}
+
 // handleSaveFile saves text content to a file via WebDAV PUT
 func handleSaveFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
