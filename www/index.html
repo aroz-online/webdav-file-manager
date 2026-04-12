@@ -364,6 +364,7 @@
                                     <i class="eye icon" id="pwdToggleIcon"></i>
                                 </button>
                             </div>
+                            <small style="color:#888;">Leave empty to keep the current password unchanged.</small>
                         </div>
                     </div>
                      <div class="config-field">
@@ -517,7 +518,7 @@
 
         // --- Configuration check ---
         function checkConfigured(cfg) {
-            if (!cfg.username || !cfg.password) {
+            if (!cfg.username) {
                 isConfigured = false;
                 $('#fileManagerUI').hide();
                 $('#unconfiguredMsg').show();
@@ -1169,7 +1170,7 @@
                 success: function(data) {
                     $('#cfgPort').val(data.port || 5488);
                     $('#cfgUsername').val(data.username || '');
-                    $('#cfgPassword').val(data.password || '');
+                    $('#cfgPassword').val('');
                     $('#cfgMaxUpload').val(Math.round((data.max_upload_size || 26214400) / 1024 / 1024));
                     checkConfigured(data);
                 },
@@ -1178,7 +1179,7 @@
                     $('#cfgPort').val(5488);
                     $('#cfgUsername').val('');
                     $('#cfgMaxUpload').val(25);
-                    checkConfigured({ username: '', password: '' });
+                    checkConfigured({ username: '' });
                 }
             });
         }
@@ -1216,7 +1217,7 @@
                 success: function(data) {
                     showSettingsMsg(data.message || "Settings saved", false);
                     // Re-check configured state and refresh
-                    checkConfigured({ username: username, password: password });
+                    checkConfigured({ username: username });
                 },
                 error: function(xhr) {
                     let msg = "Failed to save settings";

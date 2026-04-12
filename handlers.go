@@ -60,6 +60,8 @@ func handleGetConfigs(w http.ResponseWriter, r *http.Request) {
 	clientMu.RLock()
 	cfg := currentConfig
 	clientMu.RUnlock()
+	// Never send password back to the UI
+	cfg.Password = ""
 	jsonResponse(w, cfg)
 }
 
@@ -89,6 +91,13 @@ func handleSetConfigs(w http.ResponseWriter, r *http.Request) {
 
 	if newCfg.MaxUploadSize <= 0 {
 		newCfg.MaxUploadSize = 100 * 1024 * 1024 // default 100MB
+	}
+
+	// Preserve existing password if the new config has an empty password
+	if newCfg.Password == "" {
+		clientMu.RLock()
+		newCfg.Password = currentConfig.Password
+		clientMu.RUnlock()
 	}
 
 	if err := SaveConfig(newCfg); err != nil {
