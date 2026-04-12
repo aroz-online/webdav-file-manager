@@ -33,7 +33,7 @@ On first launch the plugin creates a `config.json` with default values:
 | Port | `5488` | WebDAV server port to connect to |
 | Username | *(empty)* | WebDAV Basic Auth username |
 | Password | *(empty)* | WebDAV Basic Auth password |
-| Max Upload Size | `25 MB` | Maximum upload file size |
+| Max Upload Size | `100 MB` | Maximum upload file size |
 
 The file manager will prompt you to configure credentials on the **Settings** tab before it can be used.
 
@@ -43,23 +43,6 @@ The file manager will prompt you to configure credentials on the **Settings** ta
 cd src/plugins/webdav-file-manager
 go build
 ```
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/getConfigs` | Get current configuration |
-| POST | `/api/setConfigs` | Update configuration |
-| GET | `/api/file/list` | List files in a directory |
-| GET | `/api/file/open` | Get file content (text) or metadata (binary) |
-| GET | `/api/file/download` | Download a file |
-| POST | `/api/file/upload` | Upload a file (multipart form) |
-| POST | `/api/file/save` | Save text file content |
-| POST | `/api/file/delete` | Delete a file or folder |
-| POST | `/api/file/rename` | Rename a file or folder |
-| POST | `/api/file/move` | Move a file to another directory |
-| POST | `/api/file/cut` | Alias for move |
-| POST | `/api/file/newFolder` | Create a new folder |
 
 ## License
 
