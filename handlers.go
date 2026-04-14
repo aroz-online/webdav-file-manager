@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -319,8 +320,23 @@ func handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	defer body.Close()
 
 	fileName := path.Base(filePath)
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", fileName))
+
+	// Set Content-Disposition with proper filename encoding (RFC 5987)
+	// Use both filename and filename* for maximum browser compatibility
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8''%s",
+		fileName, url.PathEscape(fileName)))
+
+	// For text files, use application/octet-stream to force download
+	// Otherwise, use the detected content type
+	if strings.HasPrefix(contentType, "text/") ||
+		contentType == "application/json" ||
+		contentType == "application/xml" ||
+		strings.HasPrefix(contentType, "application/javascript") {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	} else {
+		w.Header().Set("Content-Type", contentType)
+	}
+
 	if contentLength > 0 {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", contentLength))
 	}

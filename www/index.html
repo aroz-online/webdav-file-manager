@@ -165,6 +165,29 @@
             border: 1px solid #555;
             border-radius: 4px;
         }
+        /* Fullscreen modal styles */
+        .ui.modal.fullscreen-modal {
+            width: 95% !important;
+            height: 95% !important;
+            margin: 2.5vh auto !important;
+            position: fixed !important;
+            top: 2.5vh !important;
+            left: 2.5vw !important;
+        }
+        .ui.modal.fullscreen-modal > .content {
+            max-height: calc(95vh - 140px) !important;
+            overflow-y: auto !important;
+        }
+        .ui.modal.fullscreen-modal #aceEditorContainer {
+            height: calc(95vh - 200px) !important;
+        }
+        .ui.modal.fullscreen-modal .preview-content {
+            max-height: calc(95vh - 200px) !important;
+        }
+        .ui.modal.fullscreen-modal .media-preview img,
+        .ui.modal.fullscreen-modal .media-preview video {
+            max-height: calc(95vh - 200px) !important;
+        }
         .media-preview {
             text-align: center;
             padding: 10px 0;
@@ -454,6 +477,9 @@
         <div class="actions">
             <div class="ui basic button" id="saveFileBtn" style="display:none;">
                 <i class="green save icon"></i> Save
+            </div>
+            <div class="ui basic button" id="enlargeModalBtn" onclick="toggleModalFullscreen()" title="Toggle fullscreen">
+                <i class="expand icon"></i> Enlarge
             </div>
             <div class="ui basic button" id="previewDownloadBtn">
                 <i class="blue download icon"></i> Download
@@ -746,6 +772,10 @@
                     $('#previewModal').modal({
                         onHidden: function() {
                             destroyAceEditor();
+                            // Reset fullscreen state
+                            $('#previewModal').removeClass('fullscreen-modal');
+                            $('#enlargeModalBtn').html('<i class="expand icon"></i> Enlarge');
+                            $('#enlargeModalBtn').attr('title', 'Toggle fullscreen');
                         }
                     }).modal('show');
                 },
@@ -844,19 +874,45 @@
                     // Stop media playback on close
                     mc.find('audio, video').each(function() { this.pause(); });
                     mc.empty();
+                    // Reset fullscreen state
+                    $('#previewModal').removeClass('fullscreen-modal');
+                    $('#enlargeModalBtn').html('<i class="expand icon"></i> Enlarge');
+                    $('#enlargeModalBtn').attr('title', 'Toggle fullscreen');
                 }
             }).modal('show');
         }
 
         function downloadFile(filePath) {
-            parent.window.open('./api/file/download?path=' + encodeURIComponent(filePath), '_blank');
-            return;
-            let a = document.createElement('a');
-            a.href = './api/file/download?path=' + encodeURIComponent(filePath);
+            // Use a hidden link with download attribute to force download instead of render
+            // This must use the parent windows due to iframe policy, and the URL must be absolute
+            let a = parent.document.createElement('a');
+            let baseURL = window.location.href; //Shd be something like http://localhost:8000/plugin.ui/org.aroz.zoraxy.webdav-file-manager/
+            a.href = baseURL + 'api/file/download?path=' + encodeURIComponent(filePath);
             a.download = filePath.split('/').pop();
-            document.body.appendChild(a);
+            a.style.display = 'none';
+            parent.document.body.appendChild(a);
             a.click();
-            document.body.removeChild(a);
+            parent.document.body.removeChild(a);
+        }
+
+        function toggleModalFullscreen() {
+            let modal = $('#previewModal');
+            let btn = $('#enlargeModalBtn');
+            
+            if (modal.hasClass('fullscreen-modal')) {
+                modal.removeClass('fullscreen-modal');
+                btn.html('<i class="expand icon"></i> Enlarge');
+                btn.attr('title', 'Toggle fullscreen');
+            } else {
+                modal.addClass('fullscreen-modal');
+                btn.html('<i class="compress icon"></i> Restore');
+                btn.attr('title', 'Exit fullscreen');
+            }
+            
+            // Refresh Ace editor if it's active
+            if (aceEditor) {
+                aceEditor.resize();
+            }
         }
 
         function uploadFiles(fileList) {
